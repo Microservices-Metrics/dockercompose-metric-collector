@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: my-frontend-app:latest
+    build: ./frontend
+    networks:
+      - app-network
+
+  backend:
+    image: my-backend-app:latest
+    build: ./backend
+    environment:
+      - DB_URL=mongodb://db:27017/mydb
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+
+  db:
+    image: mongo:6
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+
+volumes:
+  mongo-data:
+
+networks:
+  app-network:
