@@ -25,13 +25,10 @@ public class CollectController {
   }
 
   @PostMapping()
-  public void postCollect() throws IOException {
-    // Identificar se tem algum container no docker-compose.yml
-    // 1) identificar o serviço dentro do repo (container que está usando build a
-    // partir de um diretório local)
-    // 2) identificar bancos de dados (a partir de enums?)
+  public void postCollect() throws IOException {    
+    // Para facilitar a construção vou ler a partir de um arquivo local num primeiro momento
+    // depois vou trocar para ler a partir de um link de repo e verificar se tem algum arquivo chamado docker-compose.yml
     
-    // Para facilitar a construção vou ler a partir de um arquivo local
     // TODO: trocar para ler a partir de um link de repo e verificar se tem algum arquivo chamado docker-compose.yml
     Resource resource = resourceLoader.getResource("file:docker-compose-mock.yaml");
     Yaml yaml = new Yaml();
@@ -47,6 +44,11 @@ public class CollectController {
         System.out.println("Service Name: " + serviceName);
         System.out.println("Build: " + serviceConfig.get("build"));
       });
+
+      // TODO: criar método para verificar build local
+      
+
+      // TODO: criar método para verificar se tem banco de dados (a partir de enums?)
     } catch (IOException e) {
       e.printStackTrace();
     }
