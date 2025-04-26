@@ -1,12 +1,14 @@
 package com.metrics.dockercompose.models;
 
+import java.time.Instant;
+
 public class Measurement {
     private String apiIdentifier;
     private int value;
     private String unit;
-    private String timestamp;
+    private Instant timestamp;
 
-    public Measurement(String apiIdentifier, int value, String unit, String timestamp) {
+    public Measurement(String apiIdentifier, int value, String unit, Instant timestamp) {
         this.apiIdentifier = apiIdentifier;
         this.value = value;
         this.unit = unit;
@@ -37,11 +39,11 @@ public class Measurement {
         this.unit = unit;
     }
 
-    public String getTimestamp() {
+    public Instant getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(String timestamp) {
+    public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
 }
