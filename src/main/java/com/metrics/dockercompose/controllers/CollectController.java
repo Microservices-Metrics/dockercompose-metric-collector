@@ -4,9 +4,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.yaml.snakeyaml.Yaml;
 
+import com.metrics.dockercompose.models.CollectorRequest;
 import com.metrics.dockercompose.models.CollectorResponse;
 import com.metrics.dockercompose.models.Measurement;
 import com.metrics.dockercompose.models.Metric;
+import com.metrics.dockercompose.services.GitHubFileService;
+
+import reactor.core.Disposable;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,17 +21,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 @RestController
 @RequestMapping("/collector")
 public class CollectController {
 
+  @Autowired
+  private GitHubFileService gitHubFileService;
   private final ResourceLoader resourceLoader;
 
   public CollectController(ResourceLoader resourceLoader) {
@@ -70,9 +80,8 @@ public class CollectController {
           Instant.now());
 
       Metric metric = new Metric(
-        "Number of services",
-        "static"
-      );
+          "Number of services",
+          "static");
 
       CollectorResponse response = new CollectorResponse(metric, measurement);
 
@@ -87,7 +96,32 @@ public class CollectController {
   }
 
   @PostMapping("/databases")
-  public void postCollectDatabases() {
-    // Implementar lógica para coletar informações de bancos de dados
+  public void postCollectDatabases(@RequestBody CollectorRequest body) {
+    AtomicReference<Map<String, Object>> dockerComposeData = new AtomicReference<>(new HashMap<>());
+
+    gitHubFileService.getFileContent(body.getDockerComposePath())
+        .subscribe(fileContent -> {
+          Yaml yaml = new Yaml();
+          dockerComposeData.set(yaml.load(fileContent));
+        }, error -> {
+          // Handle error here
+          System.err.println("Error: " + error.getMessage());
+        });
+
+    dockerComposeData.get().forEach((serviceName, config) -> {
+      Map<String, String> serviceConfig = (Map<String, String>) config;
+
+      if (serviceConfig.containsKey("image")) {
+        String image = serviceConfig.get("image");
+
+        if (image.contains("postgres")) {
+          System.out.println("Postgres service found: " + serviceName);
+        } else if (image.contains("mysql")) {
+          System.out.println("MySQL service found: " + serviceName);
+        } else if (image.contains("mongodb")) {
+          System.out.println("MongoDB service found: " + serviceName);
+        }
+      }
+    });
   }
 }
