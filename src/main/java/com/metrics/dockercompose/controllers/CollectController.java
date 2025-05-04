@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.yaml.snakeyaml.Yaml;
 
+import com.metrics.dockercompose.application.ServiceCollectorHandler;
 import com.metrics.dockercompose.models.CollectorRequest;
 import com.metrics.dockercompose.models.CollectorResponse;
 import com.metrics.dockercompose.models.DbImages;
@@ -31,65 +32,14 @@ public class CollectController {
   @Autowired
   private GitHubFileService gitHubFileService;
 
+  @Autowired
+  private ServiceCollectorHandler serviceCollectorHandler;
+
   @PostMapping("/services")
   public ResponseEntity<Object> postCollectServices(@RequestBody CollectorRequest body) {
-    Map<String, Object> dockerComposeData = new HashMap<>();
-    List<String> servicesWithBuild = new ArrayList<>();
-    Yaml yaml = new Yaml();
+    Object response = serviceCollectorHandler.handleRequest(body);
 
-    try {
-
-      String fileContent = gitHubFileService.getFileContent(body.getDockerComposePath()).block();
-
-      if (fileContent != null) {
-        dockerComposeData = yaml.load(fileContent);
-      } else {
-        throw new RuntimeException("File content is null");
-      }
-
-      System.out.println(dockerComposeData);
-
-      if (dockerComposeData == null || dockerComposeData.isEmpty()) {
-        throw new RuntimeException("File content is empty");
-      }
-
-      if (!dockerComposeData.containsKey("services")) {
-        throw new RuntimeException("No services found in the file");
-      }
-
-      Map<String, Object> services = (Map<String, Object>) dockerComposeData.get("services");
-      
-      services.forEach((serviceName, config) -> {
-        Map<String, String> serviceConfig = (Map<String, String>) config;
-
-        if (serviceConfig.containsKey("build")) {
-          servicesWithBuild.add(serviceName);
-        }
-      });
-      
-      int numServices = servicesWithBuild.size();
-
-      Measurement measurement = new Measurement(
-          "Docker compose service",
-          numServices,
-          "absolute",
-          Instant.now());
-
-      Metric metric = new Metric(
-          "Number of services",
-          "static");
-
-      CollectorResponse response = new CollectorResponse(metric, measurement);
-
-      return ResponseEntity.status(HttpStatus.OK).body(response);
-
-    } catch (Exception e) {
-      Map<String, String> errorResponse = new HashMap<>();
-
-      errorResponse.put("error", "Failed to read file: " + e.getMessage());
-
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-    }
+    return ResponseEntity.status(HttpStatus.OK).body(response);
   }
 
   @PostMapping("/databases")
