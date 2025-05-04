@@ -11,9 +11,6 @@ import com.metrics.dockercompose.models.Measurement;
 import com.metrics.dockercompose.models.Metric;
 import com.metrics.dockercompose.services.GitHubFileService;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,11 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -35,37 +30,28 @@ public class CollectController {
 
   @Autowired
   private GitHubFileService gitHubFileService;
-  private final ResourceLoader resourceLoader;
-
-  public CollectController(ResourceLoader resourceLoader) {
-    this.resourceLoader = resourceLoader;
-  }
 
   @PostMapping("/services")
-  public ResponseEntity<Object> postCollectServices() throws IOException {
-    // Para facilitar a construção vou ler a partir de um arquivo local num primeiro
-    // momento
-    // depois vou trocar para ler a partir de um link de repo e verificar se tem
-    // algum arquivo chamado docker-compose.yml
-
-    // TODO: trocar para ler a partir de um link de repo e verificar se tem algum
-    // arquivo chamado docker-compose.yml
-    Resource resource = resourceLoader.getResource("file:docker-compose.yaml");
-    Yaml yaml = new Yaml();
+  public ResponseEntity<Object> postCollectServices(@RequestBody CollectorRequest body) {
+    AtomicReference<Map<String, Object>> dockerComposeData = new AtomicReference<>(new HashMap<>());
     List<String> servicesWithBuild = new ArrayList<>();
 
-    try (InputStream inputStream = resource.getInputStream()) {
-      String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+    try {
 
-      Map<String, Object> dockerComposeData = yaml.load(content);
+      gitHubFileService.getFileContent(body.getDockerComposePath())
+          .subscribe(fileContent -> {
+            Yaml yaml = new Yaml();
 
-      Map<String, Object> services = (Map<String, Object>) dockerComposeData.get("services");
+            dockerComposeData.set(yaml.load(fileContent));
+          }, error -> {
+            System.err.println("Error: " + error.getMessage());
+          });
 
-      services.forEach((serviceName, config) -> {
+      dockerComposeData.get().forEach((serviceName, config) -> {
         Map<String, String> serviceConfig = (Map<String, String>) config;
 
         if (serviceConfig.containsKey("build")) {
-          servicesWithBuild.add(serviceName);
+          servicesWithBuild.add("serviceName");
         }
       });
 
@@ -84,7 +70,8 @@ public class CollectController {
       CollectorResponse response = new CollectorResponse(metric, measurement);
 
       return ResponseEntity.status(HttpStatus.OK).body(response);
-    } catch (IOException e) {
+
+    } catch (Exception e) {
       Map<String, String> errorResponse = new HashMap<>();
 
       errorResponse.put("error", "Failed to read file: " + e.getMessage());
@@ -101,9 +88,9 @@ public class CollectController {
     gitHubFileService.getFileContent(body.getDockerComposePath())
         .subscribe(fileContent -> {
           Yaml yaml = new Yaml();
+
           dockerComposeData.set(yaml.load(fileContent));
         }, error -> {
-          // Handle error here
           System.err.println("Error: " + error.getMessage());
         });
 
