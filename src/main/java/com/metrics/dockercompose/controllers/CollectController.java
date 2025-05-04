@@ -6,12 +6,10 @@ import org.yaml.snakeyaml.Yaml;
 
 import com.metrics.dockercompose.models.CollectorRequest;
 import com.metrics.dockercompose.models.CollectorResponse;
+import com.metrics.dockercompose.models.DbImages;
 import com.metrics.dockercompose.models.Measurement;
 import com.metrics.dockercompose.models.Metric;
 import com.metrics.dockercompose.services.GitHubFileService;
-
-import reactor.core.Disposable;
-import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -96,8 +94,9 @@ public class CollectController {
   }
 
   @PostMapping("/databases")
-  public void postCollectDatabases(@RequestBody CollectorRequest body) {
+  public ResponseEntity<Object> postCollectDatabases(@RequestBody CollectorRequest body) {
     AtomicReference<Map<String, Object>> dockerComposeData = new AtomicReference<>(new HashMap<>());
+    List<String> databases = new ArrayList<>();
 
     gitHubFileService.getFileContent(body.getDockerComposePath())
         .subscribe(fileContent -> {
@@ -114,14 +113,29 @@ public class CollectController {
       if (serviceConfig.containsKey("image")) {
         String image = serviceConfig.get("image");
 
-        if (image.contains("postgres")) {
-          System.out.println("Postgres service found: " + serviceName);
-        } else if (image.contains("mysql")) {
-          System.out.println("MySQL service found: " + serviceName);
-        } else if (image.contains("mongodb")) {
-          System.out.println("MongoDB service found: " + serviceName);
-        }
+        boolean isDatabase = DbImages.DATABASE_IMAGES
+            .stream()
+            .anyMatch(db -> image != null && image.contains(db));
+
+        if (isDatabase)
+          databases.add(serviceName);
       }
     });
+
+    int numDatabases = databases.size();
+
+    Measurement measurement = new Measurement(
+        "Docker compose service",
+        numDatabases,
+        "absolute",
+        Instant.now());
+
+    Metric metric = new Metric(
+        "Number of services",
+        "static");
+
+    CollectorResponse response = new CollectorResponse(metric, measurement);
+
+    return ResponseEntity.status(HttpStatus.OK).body(response);
   }
 }
