@@ -33,28 +33,40 @@ public class CollectController {
 
   @PostMapping("/services")
   public ResponseEntity<Object> postCollectServices(@RequestBody CollectorRequest body) {
-    AtomicReference<Map<String, Object>> dockerComposeData = new AtomicReference<>(new HashMap<>());
+    Map<String, Object> dockerComposeData = new HashMap<>();
     List<String> servicesWithBuild = new ArrayList<>();
+    Yaml yaml = new Yaml();
 
     try {
 
-      gitHubFileService.getFileContent(body.getDockerComposePath())
-          .subscribe(fileContent -> {
-            Yaml yaml = new Yaml();
+      String fileContent = gitHubFileService.getFileContent(body.getDockerComposePath()).block();
 
-            dockerComposeData.set(yaml.load(fileContent));
-          }, error -> {
-            System.err.println("Error: " + error.getMessage());
-          });
+      if (fileContent != null) {
+        dockerComposeData = yaml.load(fileContent);
+      } else {
+        throw new RuntimeException("File content is null");
+      }
 
-      dockerComposeData.get().forEach((serviceName, config) -> {
+      System.out.println(dockerComposeData);
+
+      if (dockerComposeData == null || dockerComposeData.isEmpty()) {
+        throw new RuntimeException("File content is empty");
+      }
+
+      if (!dockerComposeData.containsKey("services")) {
+        throw new RuntimeException("No services found in the file");
+      }
+
+      Map<String, Object> services = (Map<String, Object>) dockerComposeData.get("services");
+      
+      services.forEach((serviceName, config) -> {
         Map<String, String> serviceConfig = (Map<String, String>) config;
 
         if (serviceConfig.containsKey("build")) {
-          servicesWithBuild.add("serviceName");
+          servicesWithBuild.add(serviceName);
         }
       });
-
+      
       int numServices = servicesWithBuild.size();
 
       Measurement measurement = new Measurement(
